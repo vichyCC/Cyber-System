@@ -21,9 +21,20 @@ import type {
 } from './types';
 import { loadState, saveState } from './utils/storage';
 import { InventoryDateRangePicker } from './components/InventoryDateRangePicker';
+import { ShippingRiskModule } from './modules/shipping-risk/ShippingRiskModule';
 import yindaoLogo from './assets/yindao-logo.png';
 
-type PageKey = 'dashboard' | 'report' | 'export' | 'alert' | 'replenishment' | 'records';
+type PageKey =
+  | 'home'
+  | 'dashboard'
+  | 'report'
+  | 'export'
+  | 'alert'
+  | 'replenishment'
+  | 'records'
+  | 'shipping-risk'
+  | 'after-sales-center'
+  | 'data-center';
 
 interface MenuItem {
   key: PageKey;
@@ -38,21 +49,50 @@ interface MenuGroup {
 }
 
 const pageMeta: Record<PageKey, MenuItem & { breadcrumb?: string }> = {
-  dashboard: { key: 'dashboard', label: '首页看板', description: '库存概览与预警摘要' },
-  report: { key: 'report', label: '库存销售明细', description: 'SKU 库存与销售数据查询', breadcrumb: '报表中心 / 库存销售明细' },
-  export: { key: 'export', label: '导出任务', description: '查看报表导出进度', breadcrumb: '报表中心 / 导出任务' },
-  alert: { key: 'alert', label: '库存预警处理', description: '处理缺货、偏低与积压风险' },
-  replenishment: { key: 'replenishment', label: '批量导入', description: '创建补货单与导入文件', breadcrumb: '补货申请 / 批量导入' },
-  records: { key: 'records', label: '提交记录', description: '查看学员操作提交历史' },
+  home: { key: 'home', label: '首页', description: '业务中心功能导航' },
+  dashboard: { key: 'dashboard', label: '首页看板', description: '库存概览与预警摘要', breadcrumb: 'SKU库存预警 / 首页看板' },
+  alert: { key: 'alert', label: 'SKU库存预警', description: '处理缺货、偏低与积压风险', breadcrumb: 'SKU库存预警 / 预警处理' },
+  report: { key: 'report', label: '库存销售明细', description: 'SKU 库存与销售数据查询', breadcrumb: 'SKU库存预警 / 库存销售明细' },
+  export: { key: 'export', label: '导出任务', description: '查看报表导出进度', breadcrumb: 'SKU库存预警 / 导出任务' },
+  replenishment: { key: 'replenishment', label: '补货申请', description: '创建补货单与导入文件', breadcrumb: 'SKU库存预警 / 补货申请' },
+  records: { key: 'records', label: '提交记录', description: '查看业务操作提交历史', breadcrumb: 'SKU库存预警 / 提交记录' },
+  'shipping-risk': { key: 'shipping-risk', label: '订单管理', description: '查询订单履约原始数据', breadcrumb: '发货风险监控 / 订单管理' },
+  'after-sales-center': { key: 'after-sales-center', label: '售后管理', description: '售后业务功能入口' },
+  'data-center': { key: 'data-center', label: '数据中心', description: '经营数据功能入口' },
 };
 
 const menuGroups: MenuGroup[] = [
-  { key: 'dashboard-group', label: '', children: [pageMeta.dashboard] },
-  { key: 'report-center', label: '报表中心', children: [pageMeta.report, pageMeta.export] },
-  { key: 'alert-group', label: '', children: [pageMeta.alert] },
-  { key: 'replenishment-group', label: '补货申请', children: [pageMeta.replenishment] },
-  { key: 'records-group', label: '', children: [pageMeta.records] },
+  {
+    key: 'sku-stock-alert',
+    label: 'SKU库存预警',
+    children: [pageMeta.dashboard, pageMeta.report, pageMeta.export, pageMeta.replenishment, pageMeta.records],
+  },
+  { key: 'shipping-risk', label: '发货风险监控', children: [pageMeta['shipping-risk']] },
 ];
+
+const pageRoutes: Record<PageKey, string> = {
+  home: '/',
+  dashboard: '/inventory/dashboard',
+  alert: '/inventory/alerts',
+  report: '/inventory/report',
+  export: '/inventory/exports',
+  replenishment: '/inventory/replenishment',
+  records: '/inventory/records',
+  'shipping-risk': '/orders/shipping-risk',
+  'after-sales-center': '/after-sales',
+  'data-center': '/analytics',
+};
+
+const routePages: Record<string, PageKey> = Object.fromEntries(
+  Object.entries(pageRoutes).map(([page, route]) => [route, page as PageKey]),
+) as Record<string, PageKey>;
+
+routePages['/shipping-risk'] = 'shipping-risk';
+
+function getPageFromPathname(pathname: string): PageKey {
+  const normalizedPath = pathname.length > 1 ? pathname.replace(/\/$/, '') : pathname;
+  return routePages[normalizedPath] ?? 'home';
+}
 interface ReportFilters {
   store: Store | '全部店铺';
   warehouse: Warehouse | '全部仓库';
@@ -336,11 +376,20 @@ function validateReplenishmentRows(rawRows: Record<string, unknown>[], systemRow
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
-  const [activePage, setActivePage] = useState<PageKey>('dashboard');
+  const [activePage, setActivePage] = useState<PageKey>(() => getPageFromPathname(window.location.pathname));
 
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  useEffect(() => {
+    function handlePopState() {
+      setActivePage(getPageFromPathname(window.location.pathname));
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     const exportingTasks = state.exportTasks.filter((task) => task.status === '导出中');
@@ -398,6 +447,14 @@ export default function App() {
     return { alertCount, totalValue, totalStock, replenishment };
   }, [skuRows]);
 
+  function navigateToPage(page: PageKey) {
+    const nextPath = pageRoutes[page];
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, '', nextPath);
+    }
+    setActivePage(page);
+  }
+
   function createInventoryExportTask(rows: InventorySalesDetail[]) {
     const createdAtTimestamp = Date.now();
     const estimatedFinishAtTimestamp = createdAtTimestamp + 5000 + Math.floor(Math.random() * 5001);
@@ -421,7 +478,7 @@ export default function App() {
       ...current,
       exportTasks: [task, ...current.exportTasks],
     }));
-    setActivePage('export');
+    navigateToPage('export');
   }
 
   function createAlertHandlingOrder(order: Omit<AlertHandlingOrder, 'id' | 'createdAt' | 'creator' | 'status'>) {
@@ -489,8 +546,8 @@ export default function App() {
           <div className="flex items-center gap-3">
             <img className="h-9 w-9 flex-none rounded-full object-cover shadow-sm ring-1 ring-slate-200" src={yindaoLogo} alt="影刀" />
             <div>
-              <div className="text-lg font-bold text-slate-950">SKU库存预警</div>
-              <div className="text-xs text-slate-500">实训后台导航</div>
+              <div className="text-lg font-bold text-slate-950">业务中心</div>
+              <div className="text-xs text-slate-500">业务后台导航</div>
             </div>
           </div>
         </div>
@@ -515,7 +572,7 @@ export default function App() {
                         className={`relative w-full rounded-lg py-2.5 text-left transition ${
                           isActive ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-slate-600 hover:bg-white hover:text-blue-700 hover:shadow-sm'
                         } ${isChild ? 'pl-7 pr-3' : 'px-3'}`}
-                        onClick={() => setActivePage(item.key)}
+                        onClick={() => navigateToPage(item.key)}
                       >
                         {isActive && <span className="absolute bottom-2 left-0 top-2 w-1 rounded-r-full bg-blue-600" />}
                         <div className={`text-sm ${isChild ? 'font-medium' : 'font-semibold'}`}>{item.label}</div>
@@ -550,6 +607,7 @@ export default function App() {
         </header>
 
         <main className="space-y-5 p-6">
+          {activePage === 'home' && <BusinessCenterHomePage onNavigate={navigateToPage} />}
           {activePage === 'dashboard' && <DashboardPage skuRows={skuRows} stats={stats} />}
           {activePage === 'report' && <ReportPage rows={state.inventorySalesDetails} onCreateExportTask={createInventoryExportTask} />}
           {activePage === 'export' && <ExportTaskPage tasks={state.exportTasks} />}
@@ -558,9 +616,50 @@ export default function App() {
             <ReplenishmentPage rows={state.inventorySalesDetails} records={state.replenishmentApplications} onSubmitApplication={createReplenishmentApplication} />
           )}
           {activePage === 'records' && <RecordsPage logs={state.logs} orders={state.alertHandlingOrders} replenishmentApplications={state.replenishmentApplications} />}
+          {activePage === 'shipping-risk' && <ShippingRiskModule />}
+          {activePage === 'after-sales-center' && (
+            <BusinessEntryPage title="售后管理" description="售后业务功能正在逐步接入，当前保留统一业务入口。" />
+          )}
+          {activePage === 'data-center' && <BusinessEntryPage title="数据中心" description="经营数据功能正在逐步接入，当前保留统一业务入口。" />}
         </main>
       </div>
     </div>
+  );
+}
+
+function BusinessCenterHomePage({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
+  return (
+    <section className="space-y-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-bold text-slate-950">业务中心</h2>
+        <p className="mt-2 text-sm text-slate-500">选择自动化案例，进入对应的业务后台页面。</p>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <button
+          className="rounded-xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-blue-200 hover:shadow-md"
+          onClick={() => onNavigate('dashboard')}
+        >
+          <div className="text-base font-bold text-slate-950">SKU库存预警</div>
+          <div className="mt-2 text-sm text-slate-500">查看库存看板、销售明细、导出任务、补货申请及提交记录。</div>
+        </button>
+        <button
+          className="rounded-xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-blue-200 hover:shadow-md"
+          onClick={() => onNavigate('shipping-risk')}
+        >
+          <div className="text-base font-bold text-slate-950">发货风险监控</div>
+          <div className="mt-2 text-sm text-slate-500">进入订单管理，查询订单状态与履约原始数据。</div>
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function BusinessEntryPage({ title, description }: { title: string; description: string }) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+      <h2 className="text-xl font-bold text-slate-950">{title}</h2>
+      <p className="mt-3 text-sm text-slate-500">{description}</p>
+    </section>
   );
 }
 
