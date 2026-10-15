@@ -1,3 +1,8 @@
+import { daysAgo, getLast7DaysRange, formatDataRange, inventoryFileName } from '../utils/date';
+
+const mockBaseDate = new Date();
+const mockRange = getLast7DaysRange(mockBaseDate);
+const mockDataRange = formatDataRange(mockRange.startDate, mockRange.endDate);
 import type { AlertRule, AppState, Category, ExportTask, InventorySalesDetail, ProductStatus, SkuItem, Store, Warehouse } from '../types';
 
 export const defaultRule: AlertRule = {
@@ -19,7 +24,7 @@ export const mockSkus: SkuItem[] = [
     leadTimeDays: 5,
     unitCost: 9.8,
     owner: '林佳',
-    updatedAt: '2026-07-05 16:20',
+    updatedAt: `${daysAgo(2, mockBaseDate)} 16:20`,
   },
   {
     id: 'SKU-10118',
@@ -33,7 +38,7 @@ export const mockSkus: SkuItem[] = [
     leadTimeDays: 4,
     unitCost: 23.5,
     owner: '周晨',
-    updatedAt: '2026-07-05 11:45',
+    updatedAt: `${daysAgo(2, mockBaseDate)} 11:45`,
   },
   {
     id: 'SKU-10224',
@@ -47,7 +52,7 @@ export const mockSkus: SkuItem[] = [
     leadTimeDays: 6,
     unitCost: 12.9,
     owner: '唐雨',
-    updatedAt: '2026-07-04 18:02',
+    updatedAt: `${daysAgo(3, mockBaseDate)} 18:02`,
   },
   {
     id: 'SKU-10331',
@@ -61,7 +66,7 @@ export const mockSkus: SkuItem[] = [
     leadTimeDays: 7,
     unitCost: 42,
     owner: '许诺',
-    updatedAt: '2026-07-05 09:18',
+    updatedAt: `${daysAgo(2, mockBaseDate)} 09:18`,
   },
   {
     id: 'SKU-10409',
@@ -75,7 +80,7 @@ export const mockSkus: SkuItem[] = [
     leadTimeDays: 10,
     unitCost: 68,
     owner: '邵宁',
-    updatedAt: '2026-07-03 14:34',
+    updatedAt: `${daysAgo(4, mockBaseDate)} 14:34`,
   },
   {
     id: 'SKU-10567',
@@ -89,7 +94,7 @@ export const mockSkus: SkuItem[] = [
     leadTimeDays: 8,
     unitCost: 59,
     owner: '罗晴',
-    updatedAt: '2026-07-06 08:22',
+    updatedAt: `${daysAgo(1, mockBaseDate)} 08:22`,
   },
   {
     id: 'SKU-10602',
@@ -103,7 +108,7 @@ export const mockSkus: SkuItem[] = [
     leadTimeDays: 3,
     unitCost: 6.8,
     owner: '陈一',
-    updatedAt: '2026-07-06 10:12',
+    updatedAt: `${daysAgo(1, mockBaseDate)} 10:12`,
   },
   {
     id: 'SKU-10773',
@@ -117,7 +122,7 @@ export const mockSkus: SkuItem[] = [
     leadTimeDays: 5,
     unitCost: 31,
     owner: '顾南',
-    updatedAt: '2026-07-02 17:51',
+    updatedAt: `${daysAgo(5, mockBaseDate)} 17:51`,
   },
 ];
 
@@ -216,7 +221,7 @@ export const mockInventorySalesDetails: InventorySalesDetail[] = Array.from({ le
   const status = statuses[index % statuses.length];
   const values = getScenarioValues(status, index);
   const productName = productNames[category][Math.floor(index / categories.length) % productNames[category].length];
-  const day = String((index % 30) + 1).padStart(2, '0');
+
 
   return {
     id: `INV-${String(index + 1).padStart(4, '0')}`,
@@ -241,34 +246,36 @@ export const mockInventorySalesDetails: InventorySalesDetail[] = Array.from({ le
     supplier: suppliers[index % suppliers.length],
     owner: owners[index % owners.length],
     unitPrice: Number((8.8 + (index % 23) * 3.7).toFixed(2)),
-    statDate: `2026-07-${day}`,
+    statDate: daysAgo((index % 30) + 1, mockBaseDate),
   };
 });
+
+const mockExportRows = mockInventorySalesDetails.filter((row) => row.statDate >= mockRange.startDate && row.statDate <= mockRange.endDate);
 
 export const mockExportTasks: ExportTask[] = [
   {
     id: 'EXPORT-001',
     name: '库存销售明细导出',
     status: '已完成',
-    createdAt: '2026-07-06 09:30',
+    createdAt: `${daysAgo(1, mockBaseDate)} 09:30`,
     creator: '实训学员',
-    dataRange: '近7天',
+    dataRange: mockDataRange,
     fileType: 'xlsx',
     rowCount: 12,
-    fileName: 'SKU库存销售明细_近7天.xlsx',
-    rows: mockInventorySalesDetails.slice(0, 12),
+    fileName: inventoryFileName(mockDataRange),
+    rows: mockExportRows.slice(0, 12),
   },
   {
     id: 'EXPORT-002',
     name: '库存预警处理清单',
     status: '处理中',
-    createdAt: '2026-07-06 10:12',
+    createdAt: `${daysAgo(1, mockBaseDate)} 10:12`,
     creator: '实训学员',
-    dataRange: '近7天',
+    dataRange: mockDataRange,
     fileType: 'xlsx',
     rowCount: 8,
-    fileName: 'SKU库存销售明细_近7天.xlsx',
-    rows: mockInventorySalesDetails.filter((row) => row.productStatus !== '正常库存').slice(0, 8),
+    fileName: inventoryFileName(mockDataRange),
+    rows: mockExportRows.filter((row) => row.productStatus !== '正常库存').slice(0, 8),
   },
 ];
 
@@ -282,7 +289,7 @@ export const defaultState: AppState = {
   logs: [
     {
       id: 'LOG-001',
-      time: '2026-07-06 09:05',
+      time: `${daysAgo(1, mockBaseDate)} 09:05`,
       skuId: 'SKU-10086',
       skuName: 'Type-C 快充数据线 1m',
       action: '创建补货建议',
@@ -291,7 +298,7 @@ export const defaultState: AppState = {
     },
     {
       id: 'LOG-002',
-      time: '2026-07-06 09:32',
+      time: `${daysAgo(1, mockBaseDate)} 09:32`,
       skuId: 'SKU-10409',
       skuName: '便携露营折叠椅',
       action: '紧急调拨入库',

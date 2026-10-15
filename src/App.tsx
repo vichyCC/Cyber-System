@@ -6,6 +6,7 @@ import type {
   AppState,
   Category,
   ExportTask,
+  ReportFilters,
   HandlingMethod,
   InventorySalesDetail,
   ProductStatus,
@@ -19,6 +20,7 @@ import type {
   Store,
   Warehouse,
 } from './types';
+import { getLast7DaysRange, formatDataRange, inventoryFileName } from './utils/date';
 import { loadState, saveState } from './utils/storage';
 import { InventoryDateRangePicker } from './components/InventoryDateRangePicker';
 import { ShippingRiskModule } from './modules/shipping-risk/ShippingRiskModule';
@@ -93,15 +95,6 @@ function getPageFromPathname(pathname: string): PageKey {
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/$/, '') : pathname;
   return routePages[normalizedPath] ?? 'home';
 }
-interface ReportFilters {
-  store: Store | '全部店铺';
-  warehouse: Warehouse | '全部仓库';
-  productStatus: ProductStatus | '全部状态';
-  category: Category | '全部类目';
-  startDate: string;
-  endDate: string;
-  skuCode: string;
-}
 
 interface AlertFormState {
   skuCode: string;
@@ -140,15 +133,16 @@ const validImportHandlingMethods: ReplenishmentHandlingMethod[] = ['补货', '�
 const inventoryExportHeaders = ['店铺', '仓库', 'SKU编码', '商品名称', '规格', '类目', '可售库存', '在途库存', '近7天销量', '安全库存', '供应商', '商品负责人', '单价'];
 const dashboardTaskHintStorageKey = 'sku-stock-alert-dashboard-task-hint-hidden';
 
-const emptyReportFilters: ReportFilters = {
-  store: '全部店铺',
-  warehouse: '全部仓库',
-  productStatus: '全部状态',
-  category: '全部类目',
-  startDate: '',
-  endDate: '',
-  skuCode: '',
-};
+function createDefaultReportFilters(): ReportFilters {
+  return {
+    store: '全部店铺',
+    warehouse: '全部仓库',
+    productStatus: '全部状态',
+    category: '全部类目',
+    ...getLast7DaysRange(),
+    skuCode: '',
+  };
+}
 
 const emptyAlertForm: AlertFormState = {
   skuCode: '',
@@ -455,7 +449,8 @@ export default function App() {
     setActivePage(page);
   }
 
-  function createInventoryExportTask(rows: InventorySalesDetail[]) {
+  function createInventoryExportTask(rows: InventorySalesDetail[], filters: ReportFilters) {
+    const dataRange = formatDataRange(filters.startDate, filters.endDate);
     const createdAtTimestamp = Date.now();
     const estimatedFinishAtTimestamp = createdAtTimestamp + 5000 + Math.floor(Math.random() * 5001);
     const createdAt = nowText();
@@ -467,11 +462,14 @@ export default function App() {
       createdAtTimestamp,
       estimatedFinishAtTimestamp,
       creator: '实训学员',
-      dataRange: '近7天',
+      dataRange,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      queryFilters: { ...filters },
       fileType: 'xlsx',
       rowCount: rows.length,
-      fileName: 'SKU库存销售明细_近7天.xlsx',
-      rows,
+      fileName: inventoryFileName(dataRange),
+      rows: rows.map((row) => ({ ...row })),
     };
 
     setState((current) => ({
@@ -689,9 +687,9 @@ function DashboardPage({ skuRows, stats }: { skuRows: SkuRow[]; stats: Dashboard
   );
 }
 
-function ReportPage({ rows, onCreateExportTask }: { rows: InventorySalesDetail[]; onCreateExportTask: (rows: InventorySalesDetail[]) => void }) {
-  const [filters, setFilters] = useState<ReportFilters>(emptyReportFilters);
-  const [appliedFilters, setAppliedFilters] = useState<ReportFilters>(emptyReportFilters);
+function ReportPage({ rows, onCreateExportTask }: { rows: InventorySalesDetail[]; onCreateExportTask: (rows: InventorySalesDetail[], filters: ReportFilters) => void }) {
+  const [filters, setFilters] = useState<ReportFilters>(createDefaultReportFilters);
+  const [appliedFilters, setAppliedFilters] = useState<ReportFilters>(createDefaultReportFilters);
   const [showTrainingNotice, setShowTrainingNotice] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -722,8 +720,9 @@ function ReportPage({ rows, onCreateExportTask }: { rows: InventorySalesDetail[]
   }
 
   function resetFilters() {
-    setFilters(emptyReportFilters);
-    setAppliedFilters(emptyReportFilters);
+    const defaults = createDefaultReportFilters();
+    setFilters(defaults);
+    setAppliedFilters(defaults);
     setCurrentPage(1);
   }
 
@@ -766,13 +765,13 @@ function ReportPage({ rows, onCreateExportTask }: { rows: InventorySalesDetail[]
           <button className="btn-secondary" onClick={resetFilters}>
             重置
           </button>
-          <button className="btn-secondary" onClick={() => onCreateExportTask(filteredRows)}>
+          <button className="btn-secondary" onClick={() => onCreateExportTask(filteredRows, appliedFilters)}>
             导出Excel
           </button>
           <button
             className="btn-primary"
             onClick={() => {
-              setAppliedFilters(filters);
+              setAppliedFilters({ ...filters });
               setCurrentPage(1);
             }}
           >
@@ -1749,7 +1748,8 @@ function downloadExcel(task: ExportTask) {
   XLSX.utils.book_append_sheet(workbook, mainSheet, '库存销售明细');
   XLSX.utils.book_append_sheet(workbook, fieldSheet, '字段说明');
   XLSX.utils.book_append_sheet(workbook, formulaSheet, '公式说明');
-  XLSX.writeFile(workbook, 'SKU库存销售明细_近7天.xlsx');
+  workbook.Props = { Subject: `数据范围：${task.dataRange}` };
+  XLSX.writeFile(workbook, task.fileName || inventoryFileName(task.dataRange));
 }
 
 function prepareWorksheet(worksheet: XLSX.WorkSheet, widths: number[]) {

@@ -75,6 +75,16 @@ export interface InventorySalesDetail {
   statDate: string;
 }
 
+export interface ReportFilters {
+  store: Store | '全部店铺';
+  warehouse: Warehouse | '全部仓库';
+  productStatus: ProductStatus | '全部状态';
+  category: Category | '全部类目';
+  startDate: string;
+  endDate: string;
+  skuCode: string;
+}
+
 export interface ExportTask {
   id: string;
   name: string;
@@ -84,6 +94,10 @@ export interface ExportTask {
   estimatedFinishAtTimestamp?: number;
   creator: string;
   dataRange: string;
+  // 旧任务可能没有快照；新任务始终保存，空日期表示不限制。
+  startDate?: string;
+  endDate?: string;
+  queryFilters?: ReportFilters;
   fileType: 'xlsx';
   rowCount: number;
   fileName: string;

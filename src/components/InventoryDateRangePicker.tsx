@@ -1,3 +1,4 @@
+import { getToday } from '../utils/date';
 import { useEffect, useMemo } from 'react';
 import { DatePicker } from '@arco-design/web-react';
 import '@arco-design/web-react/dist/css/arco.css';
@@ -14,21 +15,12 @@ type ArcoDateLike = {
   format: (template: string) => string;
 };
 
-function todayText() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-}
-
 function normalizeDate(value?: string) {
   if (!value) {
     return undefined;
   }
 
-  const today = todayText();
+  const today = getToday();
 
   return value > today ? today : value;
 }
@@ -52,7 +44,7 @@ export function InventoryDateRangePicker({ startDate, endDate, onChange }: Inven
       <RangePicker
         allowClear
         className="inventory-arco-range-picker"
-        disabledDate={(current) => Boolean(current && (current as ArcoDateLike).format('YYYY-MM-DD') > todayText())}
+        disabledDate={(current) => Boolean(current && (current as ArcoDateLike).format('YYYY-MM-DD') > getToday())}
         format="YYYY-MM-DD"
         onChange={(valueString) => {
           if (!valueString || !valueString[0] || !valueString[1]) {

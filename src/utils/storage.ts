@@ -1,3 +1,4 @@
+import { formatDataRange, inventoryFileName } from './date';
 import { defaultState } from '../data/mockData';
 import type { AlertHandlingOrder, AppState, ExportTask, InventorySalesDetail, ReplenishmentApplicationRecord } from '../types';
 
@@ -29,12 +30,19 @@ export function loadState(): AppState {
       const taskDraft = task as Partial<ExportTask>;
       const status: ExportTask['status'] = task.status === '导出中' && taskDraft.estimatedFinishAtTimestamp && now < taskDraft.estimatedFinishAtTimestamp ? '导出中' : '已完成';
 
+      // 不从当前日期或明细日期推断历史查询范围。
+      const dataRange = taskDraft.dataRange || (
+        taskDraft.startDate && taskDraft.endDate
+          ? formatDataRange(taskDraft.startDate, taskDraft.endDate)
+          : '历史范围未知'
+      );
+
       return {
         ...task,
         status,
-        dataRange: taskDraft.dataRange ?? '近7天',
+        dataRange,
         fileType: taskDraft.fileType ?? 'xlsx',
-        fileName: taskDraft.fileName?.endsWith('.xlsx') ? task.fileName : 'SKU库存销售明细_近7天.xlsx',
+        fileName: taskDraft.fileName || inventoryFileName(dataRange),
         rows: (task.rows ?? []).map(normalizeInventoryDetail),
       };
     });
